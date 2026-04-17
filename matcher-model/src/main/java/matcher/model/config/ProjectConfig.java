@@ -8,19 +8,21 @@ import java.util.prefs.Preferences;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
+import matcher.model.InputFile;
+
 public class ProjectConfig {
 	public static class Builder {
-		public Builder(List<Path> pathsA, List<Path> pathsB) {
+		public Builder(List<InputFile> pathsA, List<InputFile> pathsB) {
 			this.pathsA = pathsA;
 			this.pathsB = pathsB;
 		}
 
 		Builder(Preferences prefs) throws BackingStoreException {
-			pathsA = Config.loadList(prefs, pathsAKey, Config::deserializePath);
-			pathsB = Config.loadList(prefs, pathsBKey, Config::deserializePath);
-			classPathA = Config.loadList(prefs, classPathAKey, Config::deserializePath);
-			classPathB = Config.loadList(prefs, classPathBKey, Config::deserializePath);
-			sharedClassPath = Config.loadList(prefs, pathsSharedKey, Config::deserializePath);
+			pathsA = Config.loadList(prefs, pathsAKey, InputFile::deserialize);
+			pathsB = Config.loadList(prefs, pathsBKey, InputFile::deserialize);
+			classPathA = Config.loadList(prefs, classPathAKey, InputFile::deserialize);
+			classPathB = Config.loadList(prefs, classPathBKey, InputFile::deserialize);
+			sharedClassPath = Config.loadList(prefs, pathsSharedKey, InputFile::deserialize);
 			inputsBeforeClassPath = prefs.getBoolean(inputsBeforeClassPathKey, false);
 
 			String storedMappingsPathA = prefs.get(mappingsPathAKey, null);
@@ -35,17 +37,17 @@ public class ProjectConfig {
 			nonObfuscatedMemberPatternB = prefs.get(nonObfuscatedMemberPatternBKey, "");
 		}
 
-		public Builder classPathA(List<Path> classPathA) {
+		public Builder classPathA(List<InputFile> classPathA) {
 			this.classPathA = classPathA;
 			return this;
 		}
 
-		public Builder classPathB(List<Path> classPathB) {
+		public Builder classPathB(List<InputFile> classPathB) {
 			this.classPathB = classPathB;
 			return this;
 		}
 
-		public Builder sharedClassPath(List<Path> sharedClassPath) {
+		public Builder sharedClassPath(List<InputFile> sharedClassPath) {
 			this.sharedClassPath = sharedClassPath;
 			return this;
 		}
@@ -95,11 +97,11 @@ public class ProjectConfig {
 					nonObfuscatedClassPatternA, nonObfuscatedClassPatternB, nonObfuscatedMemberPatternA, nonObfuscatedMemberPatternB);
 		}
 
-		protected final List<Path> pathsA;
-		protected final List<Path> pathsB;
-		protected List<Path> classPathA;
-		protected List<Path> classPathB;
-		protected List<Path> sharedClassPath;
+		protected final List<InputFile> pathsA;
+		protected final List<InputFile> pathsB;
+		protected List<InputFile> classPathA;
+		protected List<InputFile> classPathB;
+		protected List<InputFile> sharedClassPath;
 		protected boolean inputsBeforeClassPath;
 		protected Path mappingsPathA;
 		protected Path mappingsPathB;
@@ -110,8 +112,8 @@ public class ProjectConfig {
 		protected String nonObfuscatedMemberPatternB;
 	}
 
-	private ProjectConfig(List<Path> pathsA, List<Path> pathsB, List<Path> classPathA, List<Path> classPathB,
-			List<Path> sharedClassPath, boolean inputsBeforeClassPath, Path mappingsPathA, Path mappingsPathB, boolean saveUnmappedMatches,
+	private ProjectConfig(List<InputFile> pathsA, List<InputFile> pathsB, List<InputFile> classPathA, List<InputFile> classPathB,
+			List<InputFile> sharedClassPath, boolean inputsBeforeClassPath, Path mappingsPathA, Path mappingsPathB, boolean saveUnmappedMatches,
 			String nonObfuscatedClassesPatternA, String nonObfuscatedClassesPatternB, String nonObfuscatedMemberPatternA, String nonObfuscatedMemberPatternB) {
 		this.pathsA = pathsA;
 		this.pathsB = pathsB;
@@ -128,23 +130,23 @@ public class ProjectConfig {
 		this.nonObfuscatedMemberPatternB = nonObfuscatedMemberPatternB;
 	}
 
-	public List<Path> getPathsA() {
+	public List<InputFile> getPathsA() {
 		return pathsA;
 	}
 
-	public List<Path> getPathsB() {
+	public List<InputFile> getPathsB() {
 		return pathsB;
 	}
 
-	public List<Path> getClassPathA() {
+	public List<InputFile> getClassPathA() {
 		return classPathA;
 	}
 
-	public List<Path> getClassPathB() {
+	public List<InputFile> getClassPathB() {
 		return classPathB;
 	}
 
-	public List<Path> getSharedClassPath() {
+	public List<InputFile> getSharedClassPath() {
 		return sharedClassPath;
 	}
 
@@ -211,11 +213,11 @@ public class ProjectConfig {
 	void save(Preferences prefs) throws BackingStoreException {
 		if (!isValid()) return;
 
-		Config.saveList(prefs.node(pathsAKey), pathsA);
-		Config.saveList(prefs.node(pathsBKey), pathsB);
-		Config.saveList(prefs.node(classPathAKey), classPathA);
-		Config.saveList(prefs.node(classPathBKey), classPathB);
-		Config.saveList(prefs.node(pathsSharedKey), sharedClassPath);
+		Config.saveList(prefs.node(pathsAKey), pathsA, InputFile::serialize);
+		Config.saveList(prefs.node(pathsBKey), pathsB, InputFile::serialize);
+		Config.saveList(prefs.node(classPathAKey), classPathA, InputFile::serialize);
+		Config.saveList(prefs.node(classPathBKey), classPathB, InputFile::serialize);
+		Config.saveList(prefs.node(pathsSharedKey), sharedClassPath, InputFile::serialize);
 		prefs.putBoolean(inputsBeforeClassPathKey, inputsBeforeClassPath);
 		if (mappingsPathA != null) prefs.put(mappingsPathAKey, mappingsPathA.toString());
 		if (mappingsPathB != null) prefs.put(mappingsPathBKey, mappingsPathB.toString());
@@ -243,11 +245,11 @@ public class ProjectConfig {
 	private static final String nonObfuscatedMemberPatternAKey = "non-obfuscated-member-pattern-a";
 	private static final String nonObfuscatedMemberPatternBKey = "non-obfuscated-member-pattern-b";
 
-	private final List<Path> pathsA;
-	private final List<Path> pathsB;
-	private final List<Path> classPathA;
-	private final List<Path> classPathB;
-	private final List<Path> sharedClassPath;
+	private final List<InputFile> pathsA;
+	private final List<InputFile> pathsB;
+	private final List<InputFile> classPathA;
+	private final List<InputFile> classPathB;
+	private final List<InputFile> sharedClassPath;
 	private final Path mappingsPathA;
 	private final Path mappingsPathB;
 	private final boolean saveUnmappedMatches;

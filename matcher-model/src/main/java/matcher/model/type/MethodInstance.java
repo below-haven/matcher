@@ -1,6 +1,5 @@
 package matcher.model.type;
 
-import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -18,6 +17,7 @@ import org.objectweb.asm.tree.MethodNode;
 import matcher.model.NameType;
 import matcher.model.Util;
 import matcher.model.classifier.ClassifierUtil;
+import matcher.model.type.ClassInstance.Origin;
 import matcher.model.type.Signature.MethodSignature;
 
 public final class MethodInstance extends MemberInstance<MethodInstance> implements ParentInstance {
@@ -399,7 +399,7 @@ public final class MethodInstance extends MemberInstance<MethodInstance> impleme
 		return false;
 	}
 
-	private boolean hasParentMethod(Collection<MethodInstance> parents, URI reqOrigin) {
+	private boolean hasParentMethod(Collection<MethodInstance> parents, Origin reqOrigin) {
 		// check direct parents (must supply the method from the required origin)
 
 		for (MethodInstance parent : parents) {

@@ -1,4 +1,4 @@
-package matcher.model.type;
+package matcher.model;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -41,15 +41,36 @@ public final class InputFile {
 		return ret;
 	}
 
-	InputFile(Path path) {
+	public static InputFile ofPath(String path) {
+		return new InputFile(Paths.get(path));
+	}
+
+	public static InputFile deserialize(String value) {
+		Path path = Paths.get(value);
+		if (!Files.exists(path)) return null;
+
+		return new InputFile(path);
+	}
+
+	public InputFile(Path path) {
 		try {
 			this.path = path;
 			this.fileName = getSanitizedFileName(path);
-			this.size = Files.size(path);
-			this.hash = HashType.SHA256.hash(path);
-			this.hashType = HashType.SHA256;
+
+			if (Files.isDirectory(path)) {
+				this.size = unknownSize;
+				this.hash = null;
+				this.hashType = null;
+			} else {
+				this.size = Files.size(path);
+				this.hash = HashType.SHA256.hash(path);
+				this.hashType = HashType.SHA256;
+			}
+
 			this.pathHint = path;
 			this.url = null;
+
+			this.resolvedPath = path;
 		} catch (IOException e) {
 			throw new UncheckedIOException(e);
 		}
@@ -86,28 +107,52 @@ public final class InputFile {
 	}
 
 	public Path resolve(Collection<Path> inputDirs) throws IOException {
+		if (resolvedPath != null) return resolvedPath;
+
+		Path ret = resolve0(inputDirs);
+		resolvedPath = ret;
+
+		return ret;
+	}
+
+	private Path resolve0(Collection<Path> inputDirs) throws IOException {
+		if (path != null) return path;
+
 		Path dlTmp = getDlTmp(false);
 
 		if (pathHint != null) {
+			Path match = null;
+
 			if (pathHint.isAbsolute()) {
 				if (Files.isRegularFile(pathHint) && equals(pathHint)) {
-					return pathHint;
+					match = pathHint;
 				}
 			} else {
 				for (Path inputDir : inputDirs) {
 					Path file = inputDir.resolve(pathHint);
 
 					if (Files.isRegularFile(file) && equals(file)) {
-						return file;
+						match = file;
+						break;
 					}
 				}
 
-				if (dlTmp != null) {
+				if (match == null && dlTmp != null) {
 					Path file = dlTmp.resolve(pathHint);
 
 					if (Files.isRegularFile(file) && equals(file)) {
-						return file;
+						match = file;
 					}
+				}
+			}
+
+			if (match != null) {
+				try {
+					checkAndUpdateMetadata(match, match.getFileName().toString());
+
+					return match;
+				} catch (IOException e) {
+					System.out.printf("File %s didn't match %s: %s%n", match, this, e);
 				}
 			}
 		}
@@ -139,7 +184,10 @@ public final class InputFile {
 
 		if (url != null) {
 			try {
-				return downloadToTmp(url);
+				DlResult dl = downloadToTmp(url);
+				checkAndUpdateMetadata(dl.file(), dl.fileName());
+
+				return dl.file();
 			} catch (IOException | InterruptedException e) {
 				throw new IOException("download of "+url+" failed: "+e.toString());
 			}
@@ -148,8 +196,58 @@ public final class InputFile {
 		throw new IOException("can't find input "+this);
 	}
 
+	private void checkAndUpdateMetadata(Path file, String fileName) throws IOException {
+		long actualSize = Files.size(file);
+		HashType hashType = this.hashType;
+		if (hashType == null) hashType = HashType.SHA256;
+		byte[] actualHash = hashType.hash(file);
+
+		if (size != unknownSize && actualSize != size) {
+			throw new IOException("incorrect size: "+actualSize+", expected "+size);
+		}
+
+		if (hash != null && !Arrays.equals(hash, actualHash)) {
+			throw new IOException("incorrect hash");
+		}
+
+		if (fileName != null && this.fileName == null) this.fileName = fileName;
+		this.size = actualSize;
+		this.hash = actualHash;
+		this.hashType = hashType;
+	}
+
+	public Path resolvedPath() {
+		if (resolvedPath == null) throw new IllegalStateException("not resolved");
+
+		return resolvedPath;
+	}
+
 	public boolean hasPath() {
 		return path != null;
+	}
+
+	public String fileName() {
+		return fileName;
+	}
+
+	public boolean hasSize() {
+		return size != unknownSize;
+	}
+
+	public long size() {
+		return size;
+	}
+
+	public boolean hasHash() {
+		return hash != null;
+	}
+
+	public byte[] hash() {
+		return hash;
+	}
+
+	public HashType hashType() {
+		return hashType;
 	}
 
 	public boolean equals(Path path) {
@@ -157,7 +255,7 @@ public final class InputFile {
 			if (this.path != null) return Files.isSameFile(path, this.path);
 
 			if (fileName != null && !getSanitizedFileName(path).equals(fileName)) return false;
-			if (size != -1 && Files.size(path) != size) return false;
+			if (size != unknownSize && Files.size(path) != size) return false;
 
 			return hash == null || Arrays.equals(hash, hashType.hash(path));
 		} catch (IOException e) {
@@ -174,7 +272,7 @@ public final class InputFile {
 		try {
 			return (path == null || o.path == null || Files.isSameFile(path, o.path))
 					&& (fileName == null || o.fileName == null || fileName.equals(o.fileName))
-					&& (size < 0 || o.size < 0 || size == o.size)
+					&& (size == unknownSize || o.size == unknownSize || size == o.size)
 					&& (hash == null || o.hash == null || hashType == o.hashType && Arrays.equals(hash, o.hash));
 		} catch (IOException e) {
 			throw new UncheckedIOException(e);
@@ -202,6 +300,30 @@ public final class InputFile {
 
 	private static String getSanitizedFileName(Path path) {
 		return path.getFileName().toString().replace('\n', ' ');
+	}
+
+	public String serialize() {
+		return resolvedPath.toString(); // TODO: de/serialize other parts?
+	}
+
+	public static List<Path> toResolvedPaths(Collection<InputFile> files) {
+		List<Path> ret = new ArrayList<>(files.size());
+
+		for (InputFile file : files) {
+			ret.add(file.resolvedPath());
+		}
+
+		return ret;
+	}
+
+	public static List<InputFile> fromPaths(Collection<Path> files) {
+		List<InputFile> ret = new ArrayList<>(files.size());
+
+		for (Path file : files) {
+			ret.add(new InputFile(file));
+		}
+
+		return ret;
 	}
 
 	public enum HashType {
@@ -313,9 +435,17 @@ public final class InputFile {
 		return ret;
 	}
 
-	private static Path downloadToTmp(String url) throws IOException, InterruptedException {
+	private static DlResult downloadToTmp(String url) throws IOException, InterruptedException {
 		LOGGER.info("downloading {}", url);
 
+		HttpRequest request = HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(10)).build();
+		HttpResponse<InputStream> response = HTTP_CLIENT.send(request, BodyHandlers.ofInputStream());
+
+		if (response.statusCode() != 200) {
+			throw new IOException("bad http status code: "+response.statusCode());
+		}
+
+		// TODO: check Content-Disposition header
 		String name = url.substring(url.lastIndexOf('/') + 1).replaceAll("[^\\w\\.\\- ]", "x");
 		if (name.isEmpty()) name = "dl";
 		int suffix = 0;
@@ -326,19 +456,14 @@ public final class InputFile {
 			out = dlTmp.resolve(name + "_" + (++suffix));
 		}
 
-		HttpRequest request = HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(10)).build();
-		HttpResponse<InputStream> response = HTTP_CLIENT.send(request, BodyHandlers.ofInputStream());
-
-		if (response.statusCode() != 200) {
-			throw new IOException("bad http status code: "+response.statusCode());
-		}
-
 		try (InputStream is = response.body()) {
 			Files.copy(is, out);
 		}
 
-		return out;
+		return new DlResult(name, out);
 	}
+
+	private record DlResult(String fileName, Path file) { }
 
 	public static final long unknownSize = -1;
 
@@ -348,10 +473,12 @@ public final class InputFile {
 	private static Path dlTmp;
 
 	public final Path path;
-	public final String fileName;
-	public final long size;
-	public final byte[] hash;
-	public final HashType hashType;
+	private String fileName;
+	private long size;
+	private byte[] hash;
+	private HashType hashType;
 	public final Path pathHint;
 	public final String url;
+
+	private Path resolvedPath;
 }

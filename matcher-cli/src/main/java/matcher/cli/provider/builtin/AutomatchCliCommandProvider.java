@@ -1,25 +1,20 @@
 package matcher.cli.provider.builtin;
 
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.Parameters;
 
-import net.fabricmc.mappingio.MappingReader;
-
 import matcher.cli.MatcherCli;
 import matcher.cli.provider.CliCommandProvider;
 import matcher.core.Matcher;
 import matcher.core.serdes.MatchesIo;
+import matcher.model.InputFile;
 import matcher.model.config.Config;
 import matcher.model.config.ProjectConfig;
-import matcher.model.mapping.MappingField;
-import matcher.model.mapping.Mappings;
 import matcher.model.type.ClassEnvironment;
 
 /**
@@ -89,10 +84,10 @@ public class AutomatchCliCommandProvider implements CliCommandProvider {
 		Matcher.init();
 		ClassEnvironment env = new ClassEnvironment();
 		Matcher matcher = new Matcher(env);
-		ProjectConfig config = new ProjectConfig.Builder(command.inputsA, command.inputsB)
-				.classPathA(new ArrayList<>(command.classpathA))
-				.classPathB(new ArrayList<>(command.classpathB))
-				.sharedClassPath(new ArrayList<>(command.sharedClasspath))
+		ProjectConfig config = new ProjectConfig.Builder(InputFile.fromPaths(command.inputsA), InputFile.fromPaths(command.inputsB))
+				.classPathA(InputFile.fromPaths(command.classpathA))
+				.classPathB(InputFile.fromPaths(command.classpathB))
+				.sharedClassPath(InputFile.fromPaths(command.sharedClasspath))
 				.inputsBeforeClassPath(command.inputsBeforeClasspath)
 				.mappingsPathA(command.mappingsPathA)
 				.mappingsPathB(command.mappingsPathB)
@@ -105,34 +100,6 @@ public class AutomatchCliCommandProvider implements CliCommandProvider {
 
 		Config.setProjectConfig(config);
 		matcher.init(config, (progress) -> { });
-
-		if (config.getMappingsPathA() != null) {
-			Path mappingsPath = config.getMappingsPathA();
-
-			try {
-				List<String> namespaces = MappingReader.getNamespaces(mappingsPath, null);
-				Mappings.load(mappingsPath, null,
-						namespaces.get(0), namespaces.get(1),
-						MappingField.PLAIN, MappingField.MAPPED,
-						env.getEnvA(), true);
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
-		}
-
-		if (config.getMappingsPathB() != null) {
-			Path mappingsPath = config.getMappingsPathB();
-
-			try {
-				List<String> namespaces = MappingReader.getNamespaces(mappingsPath, null);
-				Mappings.load(mappingsPath, null,
-						namespaces.get(0), namespaces.get(1),
-						MappingField.PLAIN, MappingField.MAPPED,
-						env.getEnvB(), true);
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
-		}
 
 		for (int i = 0; i < command.passes; i++) {
 			matcher.autoMatchAll((progress) -> { });

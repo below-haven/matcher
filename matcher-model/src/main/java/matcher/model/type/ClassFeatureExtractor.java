@@ -1,6 +1,5 @@
 package matcher.model.type;
 
-import java.net.URI;
 import java.nio.file.FileSystem;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
@@ -30,25 +29,27 @@ import org.objectweb.asm.tree.TypeInsnNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import matcher.model.InputFile;
 import matcher.model.NameType;
 import matcher.model.Util;
+import matcher.model.Util.JarClassEntry;
 import matcher.model.type.Analysis.CommonClasses;
+import matcher.model.type.ClassInstance.Origin;
 
 public class ClassFeatureExtractor implements LocalClassEnv {
 	public ClassFeatureExtractor(ClassEnvironment env) {
 		this.env = env;
 	}
 
-	public void processInputs(Collection<Path> inputs, Pattern nonObfuscatedClasses) {
-		Set<Path> uniqueInputs = new LinkedHashSet<>(inputs);
+	public void processInputs(Collection<InputFile> inputs, Pattern nonObfuscatedClasses) {
+		Set<InputFile> uniqueInputs = new LinkedHashSet<>(inputs);
 		Predicate<ClassNode> obfuscatedCheck = cn -> isNameObfuscated(cn, nonObfuscatedClasses);
 
-		for (Path archive : uniqueInputs) {
-			inputFiles.add(new InputFile(archive));
-			URI origin = archive.toUri();
+		for (InputFile input : uniqueInputs) {
+			inputFiles.add(input);
 
-			Util.iterateJar(archive, true, file -> {
-				ClassInstance cls = readClass(file, origin, obfuscatedCheck);
+			Util.iterateJar(input, true, entry -> {
+				ClassInstance cls = readClass(entry.file(), entry.origin(), obfuscatedCheck);
 				String id = cls.getId();
 				String name = cls.getName();
 
@@ -67,17 +68,13 @@ public class ClassFeatureExtractor implements LocalClassEnv {
 		}
 	}
 
-	public void processClassPath(Collection<Path> classPath, boolean checkExisting) {
-		for (Path archive : classPath) {
-			cpFiles.add(new InputFile(archive));
+	public void processClassPath(Collection<InputFile> classPath, boolean checkExisting) {
+		for (InputFile input : classPath) {
+			cpFiles.add(input);
 
-			FileSystem fs = Util.iterateJar(archive, false, file -> {
-				String name = file.toAbsolutePath().toString();
-				if (!name.startsWith("/") || !name.endsWith(".class") || name.startsWith("//")) throw new RuntimeException("invalid path: "+archive+" ("+name+")");
-				name = name.substring(1, name.length() - ".class".length());
-
-				if (!checkExisting || getLocalClsByName(name) == null && env.getSharedClassLocation(name) == null && env.getLocalClsByName(name) == null) {
-					classPathIndex.putIfAbsent(name, file);
+			FileSystem fs = Util.iterateJar(input, false, entry -> {
+				if (!checkExisting || getLocalClsByName(entry.name()) == null && env.getSharedClassLocation(entry.name()) == null && env.getLocalClsByName(entry.name()) == null) {
+					classPathIndex.putIfAbsent(entry.name(), entry);
 
 					/*ClassNode cn = readClass(file);
 					addSharedCls(new ClassInstance(ClassInstance.getId(cn.name), file.toUri(), cn));*/
@@ -92,7 +89,7 @@ public class ClassFeatureExtractor implements LocalClassEnv {
 		return pattern == null || !pattern.matcher(cn.name).matches();
 	}
 
-	private ClassInstance readClass(Path path, URI origin, Predicate<ClassNode> nameObfuscated) {
+	private ClassInstance readClass(Path path, Origin origin, Predicate<ClassNode> nameObfuscated) {
 		ClassNode cn = ClassEnvironment.readClass(path, false);
 
 		return new ClassInstance(ClassInstance.getId(cn.name), origin, this, cn, nameObfuscated.test(cn));
@@ -698,12 +695,12 @@ public class ClassFeatureExtractor implements LocalClassEnv {
 		if (id.length() <= 1) return null; // primitive
 
 		String name = ClassInstance.getName(id);
-		Path file = classPathIndex.get(name);
-		if (file == null) return null;
+		JarClassEntry entry = classPathIndex.get(name);
+		if (entry == null) return null;
 
-		ClassNode cn = ClassEnvironment.readClass(file, false);
-		ClassInstance cls = new ClassInstance(ClassInstance.getId(cn.name), ClassEnvironment.getContainingUri(file.toUri(), cn.name), this, cn);
-		if (!cls.getId().equals(id)) throw new RuntimeException("mismatched cls id "+id+" for "+file+", expected "+name);
+		ClassNode cn = ClassEnvironment.readClass(entry.file(), false);
+		ClassInstance cls = new ClassInstance(ClassInstance.getId(cn.name), entry.origin(), this, cn);
+		if (!cls.getId().equals(id)) throw new RuntimeException("mismatched cls id "+id+" for "+entry+", expected "+name);
 
 		ClassInstance prev = classes.putIfAbsent(cls.getId(), cls);
 		assert prev == null;
@@ -728,7 +725,7 @@ public class ClassFeatureExtractor implements LocalClassEnv {
 	final ClassEnvironment env;
 	private final List<InputFile> inputFiles = new ArrayList<>();
 	private final List<InputFile> cpFiles = new ArrayList<>();
-	private final Map<String, Path> classPathIndex = new HashMap<>();
+	private final Map<String, JarClassEntry> classPathIndex = new HashMap<>();
 	private final Map<String, ClassInstance> classes = new HashMap<>();
 	private final Map<String, ClassInstance> roClasses = Collections.unmodifiableMap(classes);
 	private final Map<String, ClassInstance> arrayClasses = new HashMap<>();

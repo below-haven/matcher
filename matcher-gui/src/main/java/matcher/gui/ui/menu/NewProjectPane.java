@@ -1,16 +1,19 @@
 package matcher.gui.ui.menu;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.FileSystems;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.PathMatcher;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Stream;
 
 import javafx.beans.InvalidationListener;
 import javafx.collections.FXCollections;
@@ -38,6 +41,7 @@ import matcher.gui.MatcherGui;
 import matcher.gui.MatcherGui.SelectedFile;
 import matcher.gui.ui.GuiConstants;
 import matcher.gui.ui.GuiUtil;
+import matcher.model.InputFile;
 import matcher.model.config.ProjectConfig;
 
 public class NewProjectPane extends GridPane {
@@ -45,11 +49,11 @@ public class NewProjectPane extends GridPane {
 		this.window = window;
 		this.okButton = okButton;
 
-		pathsA = FXCollections.observableArrayList(config.getPathsA());
-		pathsB = FXCollections.observableArrayList(config.getPathsB());
-		classPathA = FXCollections.observableArrayList(config.getClassPathA());
-		classPathB = FXCollections.observableArrayList(config.getClassPathB());
-		sharedClassPath = FXCollections.observableArrayList(config.getSharedClassPath());
+		pathsA = FXCollections.observableArrayList(InputFile.toResolvedPaths(config.getPathsA()));
+		pathsB = FXCollections.observableArrayList(InputFile.toResolvedPaths(config.getPathsB()));
+		classPathA = FXCollections.observableArrayList(InputFile.toResolvedPaths(config.getClassPathA()));
+		classPathB = FXCollections.observableArrayList(InputFile.toResolvedPaths(config.getClassPathB()));
+		sharedClassPath = FXCollections.observableArrayList(InputFile.toResolvedPaths(config.getSharedClassPath()));
 		inputsBeforeClassPath = config.hasInputsBeforeClassPath();
 		nonObfuscatedClassPatternA = new TextField(config.getNonObfuscatedClassPatternA());
 		nonObfuscatedClassPatternB = new TextField(config.getNonObfuscatedClassPatternB());
@@ -221,16 +225,20 @@ public class NewProjectPane extends GridPane {
 		addDirecotyButton.setOnAction(event -> {
 			Path res = MatcherGui.requestDir("Select directory to add", window);
 
-			try (Stream<Path> stream = Files.walk(res, 128)) {
-				stream.filter(Files::isRegularFile)
-						.filter(getInputLoadExtensionMatcher()::matches)
-						.forEach(path -> {
-							if (!list.getItems().contains(path)) {
-								list.getItems().add(path);
-							}
-						});
+			try {
+				Files.walkFileTree(res, new SimpleFileVisitor<Path>() {
+					@Override
+					public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+						if (getInputLoadExtensionMatcher().matches(file)
+								&& !list.getItems().contains(file)) {
+							list.getItems().add(file);
+						}
+
+						return FileVisitResult.CONTINUE;
+					}
+				});
 			} catch (IOException e) {
-				// ignored
+				throw new UncheckedIOException(e);
 			}
 		});
 
@@ -310,10 +318,10 @@ public class NewProjectPane extends GridPane {
 	}
 
 	public ProjectConfig createConfig() {
-		return new ProjectConfig.Builder(new ArrayList<>(pathsA), new ArrayList<>(pathsB))
-				.classPathA(new ArrayList<>(classPathA))
-				.classPathB(new ArrayList<>(classPathB))
-				.sharedClassPath(new ArrayList<>(sharedClassPath))
+		return new ProjectConfig.Builder(InputFile.fromPaths(pathsA), InputFile.fromPaths(pathsB))
+				.classPathA(InputFile.fromPaths(classPathA))
+				.classPathB(InputFile.fromPaths(classPathB))
+				.sharedClassPath(InputFile.fromPaths(sharedClassPath))
 				.inputsBeforeClassPath(inputsBeforeClassPath)
 				.nonObfuscatedClassPatternA(nonObfuscatedClassPatternA.getText())
 				.nonObfuscatedClassPatternB(nonObfuscatedClassPatternB.getText())

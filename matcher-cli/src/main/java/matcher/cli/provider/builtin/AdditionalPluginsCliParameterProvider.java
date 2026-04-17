@@ -23,6 +23,6 @@ public class AdditionalPluginsCliParameterProvider implements CliParameterProvid
 
 	@Override
 	public void processArgs() {
-		PluginLoader.run(additionalPlugins);
+		PluginLoader.run(additionalPlugins, null);
 	}
 }

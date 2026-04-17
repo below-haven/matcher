@@ -8,6 +8,7 @@ classes/
 # Eclipse
 .eclipse
 *.launch
+.checkstyle
 
 # Intellij Idea
 .idea/

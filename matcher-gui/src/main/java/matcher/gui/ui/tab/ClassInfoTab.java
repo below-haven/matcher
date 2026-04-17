@@ -185,8 +185,8 @@ public class ClassInfoTab extends Tab implements IGuiComponent {
 			if (!filter.test(cls.getAsmNodes()[i])) continue;
 			if (ret.length() > 0) ret.append(", ");
 
-			String path = cls.getAsmNodeOrigin(i).getPath();
-			ret.append(path, path.lastIndexOf('/') + 1, path.length());
+			String path = cls.getAsmNodeOrigin(i).codeSource().resolvedPath().getFileName().toString();
+			ret.append(path);
 		}
 
 		return ret.toString();

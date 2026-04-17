@@ -16,12 +16,12 @@ import java.util.List;
 import java.util.function.DoubleConsumer;
 
 import matcher.core.Matcher;
+import matcher.model.InputFile;
+import matcher.model.InputFile.HashType;
 import matcher.model.config.Config;
 import matcher.model.type.ClassEnvironment;
 import matcher.model.type.ClassInstance;
 import matcher.model.type.FieldInstance;
-import matcher.model.type.InputFile;
-import matcher.model.type.InputFile.HashType;
 import matcher.model.type.LocalClassEnv;
 import matcher.model.type.MemberInstance;
 import matcher.model.type.MethodInstance;
@@ -115,7 +115,9 @@ public class MatchesIo {
 							}
 						}
 
-						inputFiles.add(new InputFile(line.substring(fileStart), size, hash, hashType, url));
+						String fileName = fileStart < line.length() ? line.substring(fileStart) : null;
+
+						inputFiles.add(new InputFile(fileName, size, hash, hashType, url));
 					} else {
 						switch (line.substring(1, line.length() - 1)) {
 						case "a":
@@ -420,13 +422,13 @@ public class MatchesIo {
 	private static void writeInputFiles(Iterable<InputFile> files, Writer out) throws IOException {
 		for (InputFile file : files) {
 			out.write("\t\t");
-			out.write(Long.toString(file.size));
+			if (file.hasSize()) out.write(Long.toString(file.size()));
 			out.write('\t');
-			out.write(file.hashType.name());
+			if (file.hasHash()) out.write(file.hashType().name());
 			out.write('\t');
-			out.write(Base64.getEncoder().encodeToString(file.hash));
+			if (file.hasHash()) out.write(Base64.getEncoder().encodeToString(file.hash()));
 			out.write('\t');
-			out.write(file.path.getFileName().toString().replace('\n', ' '));
+			if (file.fileName() != null) out.write(file.fileName().replace('\n', ' '));
 			out.write('\n');
 		}
 	}

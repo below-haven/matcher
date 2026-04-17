@@ -11,18 +11,18 @@ base {
 }
 
 java {
-	sourceCompatibility = JavaVersion.VERSION_17
-	targetCompatibility = JavaVersion.VERSION_17
+	sourceCompatibility = JavaVersion.VERSION_21
+	targetCompatibility = JavaVersion.VERSION_21
 
-	if (!JavaVersion.current().isCompatibleWith(JavaVersion.VERSION_17)) {
+	if (!JavaVersion.current().isCompatibleWith(JavaVersion.VERSION_21)) {
 		toolchain {
-			languageVersion = JavaLanguageVersion.of(17)
+			languageVersion = JavaLanguageVersion.of(21)
 		}
 	}
 }
 
 tasks.withType(JavaCompile).configureEach {
-	it.options.release = 17
+	it.options.release = 21
 }
 
 dependencies {

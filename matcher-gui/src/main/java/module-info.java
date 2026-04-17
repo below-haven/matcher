@@ -13,6 +13,7 @@ module matcher.gui {
 	requires transitive matcher.core;
 
 	uses matcher.core.Plugin;
+	uses matcher.gui.GuiPlugin;
 
 	exports matcher.gui;
 	exports matcher.gui.srcprocess;

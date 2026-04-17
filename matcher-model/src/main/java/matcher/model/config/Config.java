@@ -107,7 +107,7 @@ public class Config {
 
 		try {
 			if (projectConfig.isValid()) projectConfig.save(root.node(lastProjectSetupKey));
-			saveList(root.node(lastInputDirsKey), inputDirs);
+			saveList(root.node(lastInputDirsKey), inputDirs, Path::toString);
 			root.putBoolean(lastVerifyInputFilesKey, verifyInputFiles);
 			uidConfig.save(root);
 
@@ -125,17 +125,18 @@ public class Config {
 		String value;
 
 		for (int i = 0; (value = parent.get(Integer.toString(i), null)) != null; i++) {
-			ret.add(deserializer.apply(value));
+			T res = deserializer.apply(value);
+			if (res != null) ret.add(res);
 		}
 
 		return ret;
 	}
 
-	static void saveList(Preferences parent, List<?> list) throws BackingStoreException {
+	static <T> void saveList(Preferences parent, List<T> list, Function<T, String> serializer) throws BackingStoreException {
 		parent.clear();
 
 		for (int i = 0; i < list.size(); i++) {
-			parent.put(Integer.toString(i), list.get(i).toString());
+			parent.put(Integer.toString(i), serializer.apply(list.get(i)));
 		}
 	}
 

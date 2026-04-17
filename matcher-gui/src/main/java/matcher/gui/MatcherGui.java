@@ -1,7 +1,6 @@
 package matcher.gui;
 
 import java.io.File;
-import java.io.IOException;
 import java.net.URL;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -42,8 +41,6 @@ import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 import javafx.stage.Window;
 
-import net.fabricmc.mappingio.MappingReader;
-
 import matcher.core.Matcher;
 import matcher.gui.srcprocess.BuiltinDecompiler;
 import matcher.gui.ui.BottomPane;
@@ -55,12 +52,11 @@ import matcher.gui.ui.MatchPaneSrc;
 import matcher.gui.ui.Shortcuts;
 import matcher.gui.ui.menu.MainMenuBar;
 import matcher.gui.ui.menu.NewProjectPane;
+import matcher.model.InputFile;
 import matcher.model.NameType;
 import matcher.model.config.Config;
 import matcher.model.config.ProjectConfig;
 import matcher.model.config.Theme;
-import matcher.model.mapping.MappingField;
-import matcher.model.mapping.Mappings;
 import matcher.model.type.ClassEnvironment;
 import matcher.model.type.MatchType;
 
@@ -122,11 +118,11 @@ public class MatcherGui extends Application {
 	}
 
 	private void handleStartupArgs(List<String> args) {
-		List<Path> inputsA = new ArrayList<>();
-		List<Path> inputsB = new ArrayList<>();
-		List<Path> classPathA = new ArrayList<>();
-		List<Path> classPathB = new ArrayList<>();
-		List<Path> sharedClassPath = new ArrayList<>();
+		List<InputFile> inputsA = new ArrayList<>();
+		List<InputFile> inputsB = new ArrayList<>();
+		List<InputFile> classPathA = new ArrayList<>();
+		List<InputFile> classPathB = new ArrayList<>();
+		List<InputFile> sharedClassPath = new ArrayList<>();
 		boolean inputsBeforeClassPath = false;
 		Path mappingsPathA = null;
 		Path mappingsPathB = null;
@@ -143,35 +139,35 @@ public class MatcherGui extends Application {
 
 			case "--inputs-a":
 				while (i+1 < args.size() && !args.get(i+1).startsWith("--")) {
-					inputsA.add(Path.of(args.get(++i)));
+					inputsA.add(InputFile.ofPath(args.get(++i)));
 					validProjectConfigArgPresent = true;
 				}
 
 				break;
 			case "--inputs-b":
 				while (i+1 < args.size() && !args.get(i+1).startsWith("--")) {
-					inputsB.add(Path.of(args.get(++i)));
+					inputsB.add(InputFile.ofPath(args.get(++i)));
 					validProjectConfigArgPresent = true;
 				}
 
 				break;
 			case "--classpath-a":
 				while (i+1 < args.size() && !args.get(i+1).startsWith("--")) {
-					classPathA.add(Path.of(args.get(++i)));
+					classPathA.add(InputFile.ofPath(args.get(++i)));
 					validProjectConfigArgPresent = true;
 				}
 
 				break;
 			case "--classpath-b":
 				while (i+1 < args.size() && !args.get(i+1).startsWith("--")) {
-					classPathB.add(Path.of(args.get(++i)));
+					classPathB.add(InputFile.ofPath(args.get(++i)));
 					validProjectConfigArgPresent = true;
 				}
 
 				break;
 			case "--shared-classpath":
 				while (i+1 < args.size() && !args.get(i+1).startsWith("--")) {
-					sharedClassPath.add(Path.of(args.get(++i)));
+					sharedClassPath.add(InputFile.ofPath(args.get(++i)));
 					validProjectConfigArgPresent = true;
 				}
 
@@ -271,37 +267,7 @@ public class MatcherGui extends Application {
 					matcher.init(newConfig, progressReceiver);
 					ret.complete(true);
 				},
-				() -> {
-					if (newConfig.getMappingsPathA() != null) {
-						Path mappingsPath = newConfig.getMappingsPathA();
-
-						try {
-							List<String> namespaces = MappingReader.getNamespaces(mappingsPath, null);
-							Mappings.load(mappingsPath, null,
-									namespaces.get(0), namespaces.get(1),
-									MappingField.PLAIN, MappingField.MAPPED,
-									env.getEnvA(), true);
-						} catch (IOException e) {
-							e.printStackTrace();
-						}
-					}
-
-					if (newConfig.getMappingsPathB() != null) {
-						Path mappingsPath = newConfig.getMappingsPathB();
-
-						try {
-							List<String> namespaces = MappingReader.getNamespaces(mappingsPath, null);
-							Mappings.load(mappingsPath, null,
-									namespaces.get(0), namespaces.get(1),
-									MappingField.PLAIN, MappingField.MAPPED,
-									env.getEnvB(), true);
-						} catch (IOException e) {
-							e.printStackTrace();
-						}
-					}
-
-					onProjectChange();
-				},
+				this::onProjectChange,
 				exc -> {
 					exc.printStackTrace();
 					ret.completeExceptionally(exc);

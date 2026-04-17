@@ -4,7 +4,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.io.UncheckedIOException;
 import java.net.URI;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystemNotFoundException;
@@ -32,6 +31,8 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import matcher.model.type.ClassInstance.Origin;
 
 public class Util {
 	public static <T> Set<T> newIdentityHashSet() {
@@ -62,12 +63,12 @@ public class Util {
 		return sw.toString();
 	}
 
-	public static FileSystem iterateJar(Path archive, boolean autoClose, Consumer<Path> handler) {
+	public static FileSystem iterateJar(InputFile input, boolean autoClose, Consumer<JarClassEntry> handler) {
 		boolean existing = false;
 		FileSystem fs = null;
 
 		try {
-			URI uri = new URI("jar:"+archive.toUri().toString());
+			URI uri = new URI("jar:"+input.resolvedPath().toUri().toString());
 
 			synchronized (Util.class) {
 				try {
@@ -92,8 +93,14 @@ public class Util {
 			Files.walkFileTree(fs.getPath("/"), new SimpleFileVisitor<Path>() {
 				@Override
 				public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-					if (file.toString().endsWith(".class")) {
-						handler.accept(file);
+					assert file.isAbsolute();
+					String path = file.toString();
+
+					if (path.endsWith(".class")) {
+						assert path.startsWith("/");
+						String name = path.substring(1, path.length() - ".class".length());
+
+						handler.accept(new JarClassEntry(file, name, new Origin(input, path)));
 					}
 
 					return FileVisitResult.CONTINUE;
@@ -102,13 +109,7 @@ public class Util {
 		} catch (Throwable t) {
 			if (autoClose) autoCloseFs(fs);
 
-			if (t instanceof IOException) {
-				throw new UncheckedIOException((IOException) t);
-			} else if (t instanceof RuntimeException) {
-				throw (RuntimeException) t;
-			} else {
-				throw new RuntimeException(t);
-			}
+			throw new RuntimeException("error processing "+input, t);
 		}
 
 		if (autoClose) autoCloseFs(fs);
@@ -116,11 +117,13 @@ public class Util {
 		return autoClose || existing ? null : fs;
 	}
 
+	public record JarClassEntry(Path file, String name, Origin origin) { }
+
 	private static synchronized void autoCloseFs(FileSystem fs) {
 		AtomicInteger count = usedFsMap.get(fs);
 
-		if (count.decrementAndGet() == 0) {
-			usedFsMap.remove(fs);
+		if (count == null || count.decrementAndGet() == 0) {
+			if (count != null) usedFsMap.remove(fs);
 			closeSilently(fs);
 		}
 	}

@@ -1,6 +1,5 @@
 package matcher.model.type;
 
-import java.net.URI;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -19,6 +18,7 @@ import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.ClassNode;
 
+import matcher.model.InputFile;
 import matcher.model.NameType;
 import matcher.model.SimilarityChecker;
 import matcher.model.Util;
@@ -40,7 +40,7 @@ public final class ClassInstance implements ParentInstance, Matchable<ClassInsta
 	/**
 	 * Create a known class (class path).
 	 */
-	public ClassInstance(String id, URI origin, ClassEnv env, ClassNode asmNode) {
+	public ClassInstance(String id, Origin origin, ClassEnv env, ClassNode asmNode) {
 		this(id, origin, env, asmNode, false, false, null);
 
 		assert id.indexOf('[') == -1 : id;
@@ -62,7 +62,7 @@ public final class ClassInstance implements ParentInstance, Matchable<ClassInsta
 	/**
 	 * Create a non-array class.
 	 */
-	ClassInstance(String id, URI origin, ClassEnv env, ClassNode asmNode, boolean nameObfuscated) {
+	ClassInstance(String id, Origin origin, ClassEnv env, ClassNode asmNode, boolean nameObfuscated) {
 		this(id, origin, env, asmNode, nameObfuscated, true, null);
 
 		assert id.startsWith("L") : id;
@@ -70,7 +70,7 @@ public final class ClassInstance implements ParentInstance, Matchable<ClassInsta
 		assert asmNode != null;
 	}
 
-	private ClassInstance(String id, URI origin, ClassEnv env, ClassNode asmNode, boolean nameObfuscated, boolean input, ClassInstance elementClass) {
+	private ClassInstance(String id, Origin origin, ClassEnv env, ClassNode asmNode, boolean nameObfuscated, boolean input, ClassInstance elementClass) {
 		if (id.isEmpty()) throw new IllegalArgumentException("empty id");
 		if (env == null) throw new NullPointerException("null env");
 
@@ -263,7 +263,7 @@ public final class ClassInstance implements ParentInstance, Matchable<ClassInsta
 		return origin != null;
 	}
 
-	public URI getOrigin() {
+	public Origin getOrigin() {
 		return origin;
 	}
 
@@ -281,7 +281,7 @@ public final class ClassInstance implements ParentInstance, Matchable<ClassInsta
 		return asmNodes;
 	}
 
-	public URI getAsmNodeOrigin(int index) {
+	public Origin getAsmNodeOrigin(int index) {
 		if (index < 0 || index > 0 && (asmNodeOrigins == null || index >= asmNodeOrigins.length)) throw new IndexOutOfBoundsException(index);
 
 		return index == 0 ? origin : asmNodeOrigins[index];
@@ -294,14 +294,14 @@ public final class ClassInstance implements ParentInstance, Matchable<ClassInsta
 		return asmNodes[0]; // TODO: actually merge
 	}
 
-	void addAsmNode(ClassNode node, URI origin) {
+	void addAsmNode(ClassNode node, Origin origin) {
 		if (!input) throw new IllegalStateException("not mergeable");
 
 		asmNodes = Arrays.copyOf(asmNodes, asmNodes.length + 1);
 		asmNodes[asmNodes.length - 1] = node;
 
 		if (asmNodeOrigins == null) {
-			asmNodeOrigins = new URI[2];
+			asmNodeOrigins = new Origin[2];
 			asmNodeOrigins[0] = this.origin;
 		} else {
 			asmNodeOrigins = Arrays.copyOf(asmNodeOrigins, asmNodeOrigins.length + 1);
@@ -1172,6 +1172,8 @@ public final class ClassInstance implements ParentInstance, Matchable<ClassInsta
 		return name.substring(name.lastIndexOf('/') + 1);
 	}
 
+	public record Origin(InputFile codeSource, String path) { }
+
 	public static final Comparator<ClassInstance> nameComparator = Comparator.comparing(ClassInstance::getName);
 
 	private static final ClassInstance[] noArrays = new ClassInstance[0];
@@ -1179,10 +1181,10 @@ public final class ClassInstance implements ParentInstance, Matchable<ClassInsta
 	private static final FieldInstance[] noFields = new FieldInstance[0];
 
 	final String id;
-	private final URI origin;
+	private final Origin origin;
 	final ClassEnv env;
 	private ClassNode[] asmNodes;
-	private URI[] asmNodeOrigins;
+	private Origin[] asmNodeOrigins;
 	final boolean nameObfuscated;
 	private final boolean input;
 	final ClassInstance elementClass; // 0-dim class TODO: improve handling of array classes (references etc.)

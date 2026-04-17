@@ -2,9 +2,9 @@ package matcher.core;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -12,13 +12,16 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.ServiceLoader;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
+import java.util.function.Consumer;
 
 public class PluginLoader {
-	public static void run(List<String> extraPluginPaths) {
+	public static <T> void run(List<String> extraPluginPaths, Consumer<ClassLoader> extraPluginLoader) {
 		List<Path> pluginPaths = new ArrayList<>();
-		pluginPaths.add(Paths.get("plugins"));
+		Path defaultPluginPath = Paths.get("plugins");
+
+		if (Files.exists(defaultPluginPath)) {
+			pluginPaths.add(defaultPluginPath);
+		}
 
 		if (extraPluginPaths != null) {
 			for (String path : extraPluginPaths) {
@@ -31,18 +34,13 @@ public class PluginLoader {
 		for (Path path : pluginPaths) {
 			try {
 				if (Files.isDirectory(path)) {
-					Stream<Path> stream = Files.list(path);
-					urls.addAll(stream
-							.filter(p -> p.getFileName().toString().toLowerCase(Locale.ENGLISH).endsWith(".jar"))
-							.map(p -> {
-								try {
-									return p.toUri().toURL();
-								} catch (MalformedURLException e) {
-									throw new RuntimeException(e);
-								}
-							})
-							.collect(Collectors.toList()));
-					stream.close();
+					try (DirectoryStream<Path> ds = Files.newDirectoryStream(path)) {
+						for (Path p : ds) {
+							if (!p.getFileName().toString().toLowerCase(Locale.ENGLISH).endsWith(".jar")) continue;
+
+							urls.add(p.toUri().toURL());
+						}
+					}
 				} else if (path.getFileName().toString().toLowerCase(Locale.ENGLISH).endsWith(".jar")) {
 					urls.add(path.toUri().toURL());
 				} else {
@@ -55,12 +53,14 @@ public class PluginLoader {
 
 		URLClassLoader cl = new URLClassLoader(urls.toArray(new URL[0]));
 
-		ServiceLoader<Plugin> pluginLoader = ServiceLoader.load(Plugin.class, cl);
-
-		for (Plugin p : pluginLoader) {
+		for (Plugin p : ServiceLoader.load(Plugin.class, cl)) {
 			p.init(apiVersion);
+		}
+
+		if (extraPluginLoader != null) {
+			extraPluginLoader.accept(cl);
 		}
 	}
 
-	private static final int apiVersion = 0;
+	public static final int apiVersion = 0;
 }

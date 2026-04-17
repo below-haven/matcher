@@ -2,7 +2,6 @@ package matcher.core;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -25,6 +24,9 @@ import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import net.fabricmc.mappingio.MappingReader;
+
+import matcher.model.InputFile;
 import matcher.model.NameType;
 import matcher.model.classifier.ClassClassifier;
 import matcher.model.classifier.ClassifierLevel;
@@ -36,11 +38,12 @@ import matcher.model.classifier.MethodVarClassifier;
 import matcher.model.classifier.RankResult;
 import matcher.model.config.Config;
 import matcher.model.config.ProjectConfig;
+import matcher.model.mapping.MappingField;
+import matcher.model.mapping.Mappings;
 import matcher.model.type.ClassEnv;
 import matcher.model.type.ClassEnvironment;
 import matcher.model.type.ClassInstance;
 import matcher.model.type.FieldInstance;
-import matcher.model.type.InputFile;
 import matcher.model.type.MemberInstance;
 import matcher.model.type.MethodInstance;
 import matcher.model.type.MethodVarInstance;
@@ -62,6 +65,34 @@ public class Matcher {
 			env.init(config, progressReceiver);
 
 			matchUnobfuscated();
+
+			if (config.getMappingsPathA() != null) {
+				Path mappingsPath = config.getMappingsPathA();
+
+				try {
+					List<String> namespaces = MappingReader.getNamespaces(mappingsPath, null);
+					Mappings.load(mappingsPath, null,
+							namespaces.get(0), namespaces.get(1),
+							MappingField.PLAIN, MappingField.MAPPED,
+							env.getEnvA(), true);
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			}
+
+			if (config.getMappingsPathB() != null) {
+				Path mappingsPath = config.getMappingsPathB();
+
+				try {
+					List<String> namespaces = MappingReader.getNamespaces(mappingsPath, null);
+					Mappings.load(mappingsPath, null,
+							namespaces.get(0), namespaces.get(1),
+							MappingField.PLAIN, MappingField.MAPPED,
+							env.getEnvB(), true);
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			}
 		} catch (Throwable t) {
 			reset();
 			throw t;
@@ -98,16 +129,16 @@ public class Matcher {
 			List<InputFile> cpFilesA, List<InputFile> cpFilesB,
 			String nonObfuscatedClassPatternA, String nonObfuscatedClassPatternB, String nonObfuscatedMemberPatternA, String nonObfuscatedMemberPatternB,
 			DoubleConsumer progressReceiver) throws IOException {
-		List<Path> pathsA = InputFile.resolve(inputFilesA, inputDirs);
-		List<Path> pathsB = InputFile.resolve(inputFilesB, inputDirs);
-		List<Path> sharedClassPath = InputFile.resolve(cpFiles, inputDirs);
-		List<Path> classPathA = InputFile.resolve(cpFilesA, inputDirs);
-		List<Path> classPathB = InputFile.resolve(cpFilesB, inputDirs);
+		InputFile.resolve(inputFilesA, inputDirs);
+		InputFile.resolve(inputFilesB, inputDirs);
+		InputFile.resolve(cpFiles, inputDirs);
+		InputFile.resolve(cpFilesA, inputDirs);
+		InputFile.resolve(cpFilesB, inputDirs);
 
-		ProjectConfig config = new ProjectConfig.Builder(pathsA, pathsB)
-				.classPathA(new ArrayList<>(classPathA))
-				.classPathB(new ArrayList<>(classPathB))
-				.sharedClassPath(new ArrayList<>(sharedClassPath))
+		ProjectConfig config = new ProjectConfig.Builder(inputFilesA, inputFilesB)
+				.classPathA(cpFilesA)
+				.classPathB(cpFilesB)
+				.sharedClassPath(cpFiles)
 				.nonObfuscatedClassPatternA(nonObfuscatedClassPatternA)
 				.nonObfuscatedClassPatternB(nonObfuscatedClassPatternB)
 				.nonObfuscatedMemberPatternA(nonObfuscatedMemberPatternA)

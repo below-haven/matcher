@@ -2,6 +2,7 @@ package matcher.gui;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.ServiceLoader;
 
 import javafx.application.Application;
 
@@ -30,7 +31,13 @@ public class Main {
 		}
 
 		Config.init(themeId);
-		PluginLoader.run(extraPluginPaths);
+
+		PluginLoader.run(extraPluginPaths, cl -> {
+			for (GuiPlugin plugin : ServiceLoader.load(GuiPlugin.class, cl)) {
+				plugin.init(PluginLoader.apiVersion, listener -> MatcherGui.loadListeners.add(listener));
+			}
+		});
+
 		Application.launch(MatcherGui.class, args);
 	}
 }

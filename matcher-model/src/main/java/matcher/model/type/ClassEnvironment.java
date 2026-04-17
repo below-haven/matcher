@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.function.DoubleConsumer;
 import java.util.regex.Pattern;
@@ -35,11 +36,14 @@ import org.objectweb.asm.tree.MethodNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import matcher.model.InputFile;
 import matcher.model.NameType;
 import matcher.model.Util;
+import matcher.model.Util.JarClassEntry;
 import matcher.model.classifier.ClassifierUtil;
 import matcher.model.classifier.MatchingCache;
 import matcher.model.config.ProjectConfig;
+import matcher.model.type.ClassInstance.Origin;
 import matcher.model.type.Signature.ClassSignature;
 
 public final class ClassEnvironment implements ClassEnv {
@@ -91,17 +95,13 @@ public final class ClassEnvironment implements ClassEnv {
 		progressReceiver.accept(1);
 	}
 
-	private void initClassPath(Collection<Path> sharedClassPath, boolean checkExisting) throws IOException {
-		for (Path archive : sharedClassPath) {
-			cpFiles.add(new InputFile(archive));
+	private void initClassPath(Collection<InputFile> sharedClassPath, boolean checkExisting) throws IOException {
+		for (InputFile input : sharedClassPath) {
+			cpFiles.add(input);
 
-			FileSystem fs = Util.iterateJar(archive, false, file -> {
-				String name = file.toAbsolutePath().toString();
-				if (!name.startsWith("/") || !name.endsWith(".class") || name.startsWith("//")) throw new RuntimeException("invalid path: "+archive+" ("+name+")");
-				name = name.substring(1, name.length() - ".class".length());
-
-				if (!checkExisting || extractorA.getLocalClsByName(name) == null || extractorB.getLocalClsByName(name) == null) {
-					classPathIndex.putIfAbsent(name, file);
+			FileSystem fs = Util.iterateJar(input, false, entry -> {
+				if (!checkExisting || extractorA.getLocalClsByName(entry.name()) == null || extractorB.getLocalClsByName(entry.name()) == null) {
+					classPathIndex.putIfAbsent(entry.name(), entry);
 
 					/*ClassNode cn = readClass(file);
 					addSharedCls(new ClassInstance(ClassInstance.getId(cn.name), file.toUri(), cn));*/
@@ -256,7 +256,7 @@ public final class ClassEnvironment implements ClassEnv {
 		return cls;
 	}
 
-	public Path getSharedClassLocation(String name) {
+	public JarClassEntry getSharedClassLocation(String name) {
 		return classPathIndex.get(name);
 	}
 
@@ -370,20 +370,24 @@ public final class ClassEnvironment implements ClassEnv {
 			}
 
 			String name = ClassInstance.getName(id);
-			Path file = getSharedClassLocation(name);
+			JarClassEntry entry = getSharedClassLocation(name);
 
-			if (file == null) {
+			if (entry == null) {
 				URL url = ClassLoader.getSystemResource(name+".class");
 
 				if (url != null) {
-					file = getPath(url);
+					Path path = getPath(url);
+					Path csPath = Paths.get(getContainingUri(path.toUri(), name));
+
+					InputFile input = systemPathIndex.computeIfAbsent(csPath, InputFile::new);
+					entry = new JarClassEntry(path, name, new Origin(input, path.toString()));
 				}
 			}
 
-			if (file != null) {
-				ClassNode cn = readClass(file, true);
-				ClassInstance cls = new ClassInstance(ClassInstance.getId(cn.name), getContainingUri(file.toUri(), cn.name), this, cn);
-				if (!cls.getId().equals(id)) throw new RuntimeException("mismatched cls id "+id+" for "+file+", expected "+name);
+			if (entry != null) {
+				ClassNode cn = readClass(entry.file(), true);
+				ClassInstance cls = new ClassInstance(ClassInstance.getId(cn.name), entry.origin(), this, cn);
+				if (!cls.getId().equals(id)) throw new RuntimeException("mismatched cls id "+id+" for "+entry.file()+", expected "+name);
 
 				ClassInstance ret = addSharedCls(cls);
 
@@ -477,8 +481,8 @@ public final class ClassEnvironment implements ClassEnv {
 			reader.accept(cn, ClassReader.EXPAND_FRAMES | (skipCode ? ClassReader.SKIP_CODE : 0));
 
 			return cn;
-		} catch (IOException e) {
-			throw new UncheckedIOException(e);
+		} catch (Throwable t) {
+			throw new RuntimeException("error reading class at "+path, t);
 		}
 	}
 
@@ -619,7 +623,8 @@ public final class ClassEnvironment implements ClassEnv {
 	private final List<InputFile> cpFiles = new ArrayList<>();
 	private final Map<String, ClassInstance> sharedClasses = new HashMap<>();
 	private final List<FileSystem> openFileSystems = new ArrayList<>();
-	private final Map<String, Path> classPathIndex = new HashMap<>();
+	private final Map<String, JarClassEntry> classPathIndex = new HashMap<>();
+	private final Map<Path, InputFile> systemPathIndex = new ConcurrentHashMap<>();
 	private final ClassFeatureExtractor extractorA = new ClassFeatureExtractor(this);
 	private final ClassFeatureExtractor extractorB = new ClassFeatureExtractor(this);
 	private final MatchingCache cache = new MatchingCache();
