@@ -679,8 +679,18 @@ public final class ClassInstance implements ParentInstance, Matchable<ClassInsta
 	}
 
 	private MethodInstance resolveSignaturePolymorphicMethod(String name) {
-		if (id.equals("Ljava/lang/invoke/MethodHandle;")) { // check for signature polymorphic method - jvms-2.9
-			MethodInstance ret = getMethod(name, "([Ljava/lang/Object;)Ljava/lang/Object;");
+		String desc;
+
+		if (id.equals("Ljava/lang/invoke/MethodHandle;")) {
+			desc = "([Ljava/lang/Object;)Ljava/lang/Object;";
+		} else if (id.equals("Ljava/lang/invoke/VarHandle;")) {
+			desc = getVarHandleSignaturePolymorphicDesc(name);
+		} else {
+			desc = null;
+		}
+
+		if (desc != null) { // check for signature polymorphic method - jvms-2.9
+			MethodInstance ret = getMethod(name, desc);
 			final int reqFlags = Opcodes.ACC_VARARGS | Opcodes.ACC_NATIVE;
 
 			if (ret != null && (!ret.isReal() || (ret.access & reqFlags) == reqFlags)) {
@@ -689,6 +699,43 @@ public final class ClassInstance implements ParentInstance, Matchable<ClassInsta
 		}
 
 		return null;
+	}
+
+	private static String getVarHandleSignaturePolymorphicDesc(String name) {
+		return switch (name) {
+		case "get",
+				"getVolatile",
+				"getOpaque",
+				"getAcquire",
+				"compareAndExchange",
+				"compareAndExchangeAcquire",
+				"compareAndExchangeRelease",
+				"getAndSet",
+				"getAndSetAcquire",
+				"getAndSetRelease",
+				"getAndAdd",
+				"getAndAddAcquire",
+				"getAndAddRelease",
+				"getAndBitwiseOr",
+				"getAndBitwiseOrAcquire",
+				"getAndBitwiseOrRelease",
+				"getAndBitwiseAnd",
+				"getAndBitwiseAndAcquire",
+				"getAndBitwiseAndRelease",
+				"getAndBitwiseXor",
+				"getAndBitwiseXorAcquire",
+				"getAndBitwiseXorRelease" -> "([Ljava/lang/Object;)Ljava/lang/Object;";
+		case "set",
+				"setVolatile",
+				"setOpaque",
+				"setRelease" -> "([Ljava/lang/Object;)V";
+		case "compareAndSet",
+				"weakCompareAndSetPlain",
+				"weakCompareAndSet",
+				"weakCompareAndSetAcquire",
+				"weakCompareAndSetRelease" -> "([Ljava/lang/Object;)Z";
+		default -> null;
+		};
 	}
 
 	private MethodInstance resolveInterfaceMethod(String name, String desc) {
