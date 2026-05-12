@@ -27,6 +27,7 @@ import matcher.model.type.Signature.MethodSignature;
 public class MethodClassifier {
 	public static void init() {
 		addClassifier(methodTypeCheck, 10);
+		addClassifier(stableId, 5);
 		addClassifier(accessFlags, 4);
 		addClassifier(argTypes, 10);
 		addClassifier(retType, 5);
@@ -99,6 +100,13 @@ public class MethodClassifier {
 
 	private static final Map<ClassifierLevel, List<IClassifier<MethodInstance>>> classifiers = new EnumMap<>(ClassifierLevel.class);
 	private static final Map<ClassifierLevel, Double> maxScore = new EnumMap<>(ClassifierLevel.class);
+
+	private static AbstractClassifier stableId = new AbstractClassifier("stable id") {
+		@Override
+		public double getScore(MethodInstance methodA, MethodInstance methodB, ClassEnvironment env) {
+			return ClassifierUtil.compareStableIds(methodA, methodB);
+		}
+	};
 
 	private static AbstractClassifier methodTypeCheck = new AbstractClassifier("method type check") {
 		@Override

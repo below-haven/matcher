@@ -24,6 +24,7 @@ import matcher.model.type.Signature.FieldSignature;
 public class FieldClassifier {
 	public static void init() {
 		addClassifier(fieldTypeCheck, 10);
+		addClassifier(stableId, 5);
 		addClassifier(accessFlags, 4);
 		addClassifier(type, 10);
 		addClassifier(signature, 5);
@@ -62,6 +63,13 @@ public class FieldClassifier {
 
 	private static final Map<ClassifierLevel, List<IClassifier<FieldInstance>>> classifiers = new IdentityHashMap<>();
 	private static final Map<ClassifierLevel, Double> maxScore = new EnumMap<>(ClassifierLevel.class);
+
+	private static AbstractClassifier stableId = new AbstractClassifier("stable id") {
+		@Override
+		public double getScore(FieldInstance fieldA, FieldInstance fieldB, ClassEnvironment env) {
+			return ClassifierUtil.compareStableIds(fieldA, fieldB);
+		}
+	};
 
 	private static AbstractClassifier fieldTypeCheck = new AbstractClassifier("field type check") {
 		@Override

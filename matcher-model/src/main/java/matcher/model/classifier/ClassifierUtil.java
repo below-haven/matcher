@@ -173,6 +173,19 @@ public class ClassifierUtil {
 		return 1 - (double) delta / Math.max(countA, countB);
 	}
 
+	public static double compareStableIds(Matchable<?> a, Matchable<?> b) {
+		String nameA = a.getName();
+		String nameB = b.getName();
+
+		if (!isStableName(nameA) || !isStableName(nameB)) return 0;
+
+		return a.getId().equals(b.getId()) ? 1 : 0;
+	}
+
+	private static boolean isStableName(String name) {
+		return name.length() >= 3 && name.charAt(0) != '<';
+	}
+
 	public static <T> double compareSets(Set<T> setA, Set<T> setB, boolean readOnly) {
 		if (readOnly) setB = Util.copySet(setB);
 
