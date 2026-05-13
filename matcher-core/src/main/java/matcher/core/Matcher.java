@@ -2,6 +2,7 @@ package matcher.core;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -67,6 +68,7 @@ public class Matcher {
 			env.init(config, progressReceiver);
 
 			matchUnobfuscated();
+			matchIdenticalClasses();
 
 			if (config.getMappingsPathA() != null) {
 				Path mappingsPath = config.getMappingsPathA();
@@ -111,6 +113,24 @@ public class Matcher {
 				match(cls, match);
 			}
 		}
+	}
+
+	private void matchIdenticalClasses() {
+		int count = 0;
+
+		for (ClassInstance cls : env.getClassesA()) {
+			if (!cls.isReal() || !cls.isMatchable() || cls.hasMatch()) continue;
+
+			ClassInstance match = env.getLocalClsByIdB(cls.getId());
+
+			if (match == null || !match.isReal() || !match.isMatchable() || match.hasMatch()) continue;
+			if (!Arrays.equals(cls.serialize(NameType.PLAIN), match.serialize(NameType.PLAIN))) continue;
+
+			match(cls, match);
+			count++;
+		}
+
+		if (count > 0) LOGGER.info("Matched {} byte-identical classes with the same name", count);
 	}
 
 	public void reset() {
@@ -246,7 +266,7 @@ public class Matcher {
 		env.getCache().clear();
 	}
 
-	private static MethodInstance getUniqueExactBytecodeMethod(MethodInstance src, ClassInstance srcCls, ClassInstance dstCls) {
+	private MethodInstance getUniqueExactBytecodeMethod(MethodInstance src, ClassInstance srcCls, ClassInstance dstCls) {
 		MethodInstance ret = null;
 
 		for (MethodInstance dst : dstCls.getMethods()) {
@@ -269,7 +289,7 @@ public class Matcher {
 		return ret;
 	}
 
-	private static boolean canMatchByExactBytecode(MethodInstance a, MethodInstance b) {
+	private boolean canMatchByExactBytecode(MethodInstance a, MethodInstance b) {
 		return !a.hasMatch()
 				&& !b.hasMatch()
 				&& !hasInvokeDynamic(a)
