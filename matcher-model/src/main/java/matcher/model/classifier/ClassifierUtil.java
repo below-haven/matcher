@@ -85,13 +85,22 @@ public class ClassifierUtil {
 	}
 
 	public static boolean checkPotentialEquality(MethodInstance a, MethodInstance b) {
+		return checkPotentialEquality(a, b, false);
+	}
+
+	public static boolean checkPotentialEqualityIgnoringMethodMatches(MethodInstance a, MethodInstance b) {
+		return checkPotentialEquality(a, b, true);
+	}
+
+	private static boolean checkPotentialEquality(MethodInstance a, MethodInstance b, boolean ignoreMethodMatches) {
 		if (a == b) return true;
-		if (a.getMatch() != null) return a.getMatch() == b;
-		if (b.getMatch() != null) return b.getMatch() == a;
+		if (!ignoreMethodMatches && a.getMatch() != null) return a.getMatch() == b;
+		if (!ignoreMethodMatches && b.getMatch() != null) return b.getMatch() == a;
 		if (!a.isMatchable() || !b.isMatchable()) return false;
 		if (!checkPotentialEquality(a.getCls(), b.getCls())) return false;
 		if (!checkNameObfMatch(a, b)) return false;
 		if ((a.getId().startsWith("<") || b.getId().startsWith("<")) && !a.getName().equals(b.getName())) return false; // require <clinit> and <init> to match
+		if (!a.isNameObfuscated() && !b.isNameObfuscated() && !checkPotentialMethodDescriptorEquality(a, b)) return false;
 
 		//MethodInstance hierarchyMatch = a.getHierarchyMatch();
 		//if (hierarchyMatch != null && !hierarchyMatch.getAllHierarchyMembers().contains(b)) return false;
@@ -110,6 +119,20 @@ public class ClassifierUtil {
 			}
 
 			if (!found) return false;
+		}
+
+		return true;
+	}
+
+	private static boolean checkPotentialMethodDescriptorEquality(MethodInstance a, MethodInstance b) {
+		MethodVarInstance[] argsA = a.getArgs();
+		MethodVarInstance[] argsB = b.getArgs();
+
+		if (argsA.length != argsB.length) return false;
+		if (!checkPotentialEquality(a.getRetType(), b.getRetType())) return false;
+
+		for (int i = 0; i < argsA.length; i++) {
+			if (!checkPotentialEquality(argsA[i].getType(), argsB[i].getType())) return false;
 		}
 
 		return true;
