@@ -92,9 +92,6 @@ extraJavaModuleInfo {
 	// CFR
 	automaticModule("net.fabricmc:cfr", "cfr")
 
-	// Vineflower
-	automaticModule("org.vineflower:vineflower", "org.vineflower.vineflower")
-
 	// Procyon
 	automaticModule("org.bitbucket.mstrobel:procyon-compilertools", "procyon.compilertools")
 	automaticModule("org.bitbucket.mstrobel:procyon-core", "procyon.core")

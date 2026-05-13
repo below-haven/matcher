@@ -644,7 +644,7 @@ public class MatcherGui extends Application {
 	private Theme lastSwitchedToTheme;
 
 	private NameType nameType = NameType.MAPPED_PLAIN;
-	private BuiltinDecompiler decompiler = BuiltinDecompiler.CFR;
+	private BuiltinDecompiler decompiler = BuiltinDecompiler.VINEFLOWER;
 
 	private static File lastChooserFile;
 }
