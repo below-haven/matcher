@@ -15,6 +15,7 @@ import javafx.scene.control.TextField;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.Tooltip;
 import javafx.scene.input.MouseButton;
+import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
@@ -71,13 +72,13 @@ public class MatchPaneDst extends SplitPane implements IFwdGuiComponent, ISelect
 
 			announceSelectionChange(oldSel, newSel);
 		});
-		matchList.setOnMousePressed(event -> pressedSelection = matchList.getSelectionModel().getSelectedItem());
+		matchList.addEventFilter(MouseEvent.MOUSE_PRESSED, event -> pressedSelection = matchList.getSelectionModel().getSelectedItem());
 		matchList.setOnMouseClicked(event -> {
 			if (suppressChangeEvents || event.getButton() != MouseButton.PRIMARY) return;
 
 			RankResult<? extends Matchable<?>> selection = matchList.getSelectionModel().getSelectedItem();
 			if (selection != null && selection == pressedSelection) {
-				announceSelectionChange(null, selection.getSubject());
+				refreshSelection(selection.getSubject());
 			}
 		});
 
@@ -161,6 +162,20 @@ public class MatchPaneDst extends SplitPane implements IFwdGuiComponent, ISelect
 		if (newMethod != oldMethod) onMethodSelect(newMethod);
 		if (newMethodVar != oldMethodVar) onMethodVarSelect(newMethodVar);
 		if (newField != oldField) onFieldSelect(newField);
+	}
+
+	private void refreshSelection(Matchable<?> selection) {
+		if (selection instanceof MethodVarInstance) {
+			onMethodVarSelect((MethodVarInstance) selection);
+		} else if (selection instanceof MethodInstance) {
+			onMethodSelect((MethodInstance) selection);
+		} else if (selection instanceof FieldInstance) {
+			onFieldSelect((FieldInstance) selection);
+		} else if (selection instanceof ClassInstance) {
+			onClassSelect((ClassInstance) selection);
+		} else {
+			throw new IllegalStateException();
+		}
 	}
 
 	@Override
