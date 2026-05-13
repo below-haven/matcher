@@ -66,13 +66,23 @@ public class MethodClassifier {
 	}
 
 	public static List<RankResult<MethodInstance>> rank(MethodInstance src, MethodInstance[] dsts, ClassifierLevel level, ClassEnvironment env, double maxMismatch) {
-		if (src.hasMatch()) { // already matched,  limit dsts to the match
+		return rank(src, dsts, level, env, maxMismatch, true);
+	}
+
+	public static List<RankResult<MethodInstance>> rankPotentialMatches(MethodInstance src, MethodInstance[] dsts, ClassifierLevel level, ClassEnvironment env, double maxMismatch) {
+		return rank(src, dsts, level, env, maxMismatch, false);
+	}
+
+	private static List<RankResult<MethodInstance>> rank(MethodInstance src, MethodInstance[] dsts, ClassifierLevel level, ClassEnvironment env, double maxMismatch, boolean limitExistingMatches) {
+		if (src.hasMatch() && limitExistingMatches) { // already matched,  limit dsts to the match
 			if (!Arrays.asList(dsts).contains(src.getMatch())) {
 				return Collections.emptyList();
 			} else if (dsts.length != 1) {
 				dsts = new MethodInstance[] { src.getMatch() };
 			}
-		} else { // limit dsts to the same method tree if there's a matched src
+		}
+
+		if (!src.hasMatch()) { // limit dsts to the same method tree if there's a matched src
 			MethodInstance matched = src.getHierarchyMatch();
 
 			if (matched != null) {
@@ -95,7 +105,9 @@ public class MethodClassifier {
 			}
 		}
 
-		return ClassifierUtil.rank(src, dsts, classifiers.getOrDefault(level, Collections.emptyList()), ClassifierUtil::checkPotentialEquality, env, maxMismatch);
+		return ClassifierUtil.rank(src, dsts, classifiers.getOrDefault(level, Collections.emptyList()),
+				limitExistingMatches ? ClassifierUtil::checkPotentialEquality : ClassifierUtil::checkPotentialEqualityIgnoringMethodMatches,
+				env, maxMismatch);
 	}
 
 	private static final Map<ClassifierLevel, List<IClassifier<MethodInstance>>> classifiers = new EnumMap<>(ClassifierLevel.class);

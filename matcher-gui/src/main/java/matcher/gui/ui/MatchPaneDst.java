@@ -14,6 +14,7 @@ import javafx.scene.control.SplitPane;
 import javafx.scene.control.TextField;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.Tooltip;
+import javafx.scene.input.MouseButton;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
@@ -69,6 +70,15 @@ public class MatchPaneDst extends SplitPane implements IFwdGuiComponent, ISelect
 			Matchable<?> newSel = newValue != null ? newValue.getSubject() : null;
 
 			announceSelectionChange(oldSel, newSel);
+		});
+		matchList.setOnMousePressed(event -> pressedSelection = matchList.getSelectionModel().getSelectedItem());
+		matchList.setOnMouseClicked(event -> {
+			if (suppressChangeEvents || event.getButton() != MouseButton.PRIMARY) return;
+
+			RankResult<? extends Matchable<?>> selection = matchList.getSelectionModel().getSelectedItem();
+			if (selection != null && selection == pressedSelection) {
+				announceSelectionChange(null, selection.getSubject());
+			}
 		});
 
 		vbox.getChildren().add(matchList);
@@ -715,7 +725,7 @@ public class MatchPaneDst extends SplitPane implements IFwdGuiComponent, ISelect
 				ranker = () -> ClassClassifier.rankParallel(cls, cmpClasses.toArray(new ClassInstance[0]), matchLevel, env, maxMismatch);
 			} else if (newSrcSelection instanceof MethodInstance) { // unmatched method or no method var selected
 				MethodInstance method = (MethodInstance) newSrcSelection;
-				ranker = () -> MethodClassifier.rank(method, method.getCls().getMatch().getMethods(), matchLevel, env, maxMismatch);
+				ranker = () -> MethodClassifier.rankPotentialMatches(method, method.getCls().getMatch().getMethods(), matchLevel, env, maxMismatch);
 			} else if (newSrcSelection instanceof FieldInstance) { // field
 				FieldInstance field = (FieldInstance) newSrcSelection;
 				ranker = () -> FieldClassifier.rank(field, field.getCls().getMatch().getFields(), matchLevel, env, maxMismatch);
@@ -784,4 +794,5 @@ public class MatchPaneDst extends SplitPane implements IFwdGuiComponent, ISelect
 	private List<ClassInstance> cmpClasses;
 
 	private boolean suppressChangeEvents;
+	private RankResult<? extends Matchable<?>> pressedSelection;
 }
