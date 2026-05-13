@@ -174,16 +174,9 @@ public class ClassifierUtil {
 	}
 
 	public static double compareStableIds(Matchable<?> a, Matchable<?> b) {
-		String nameA = a.getName();
-		String nameB = b.getName();
-
-		if (!isStableName(nameA) || !isStableName(nameB)) return 0;
+		if (a.isNameObfuscated() || b.isNameObfuscated()) return 0;
 
 		return a.getId().equals(b.getId()) ? 1 : 0;
-	}
-
-	private static boolean isStableName(String name) {
-		return name.length() >= 3 && name.charAt(0) != '<';
 	}
 
 	public static <T> double compareSets(Set<T> setA, Set<T> setB, boolean readOnly) {
@@ -497,10 +490,12 @@ public class ClassifierUtil {
 	}
 
 	private static boolean compareMethods(String ownerA, String nameA, String descA, boolean toIfA, String ownerB, String nameB, String descB, boolean toIfB, ClassEnvironment env) {
+		if (ownerA.equals(ownerB) && nameA.equals(nameB) && descA.equals(descB) && toIfA == toIfB) return true;
+
 		ClassInstance clsA = env.getClsByNameA(ownerA);
 		ClassInstance clsB = env.getClsByNameB(ownerB);
 
-		if (clsA == null && clsB == null) return true;
+		if (clsA == null && clsB == null) return false;
 		if (clsA == null || clsB == null) return false;
 
 		return compareMethods(clsA, nameA, descA, toIfA, clsB, nameB, descB, toIfB);
