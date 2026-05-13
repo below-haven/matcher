@@ -21,6 +21,8 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.objectweb.asm.tree.AbstractInsnNode;
+import org.objectweb.asm.tree.InvokeDynamicInsnNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -197,8 +199,15 @@ public class Matcher {
 		// match methods that are not obfuscated or matched via parents/children
 
 		for (MethodInstance src : a.getMethods()) {
+			MethodInstance dst = b.getMethod(src.getId());
+
+			if (src.isNameObfuscated() && (dst = getUniqueExactBytecodeMethod(src, a, b)) != null) {
+				match(src, dst);
+				continue;
+			}
+
 			if (!src.isNameObfuscated()) {
-				MethodInstance dst = b.getMethod(src.getId());
+				dst = b.getMethod(src.getId());
 
 				if ((dst != null || (dst = b.getMethod(src.getName(), null)) != null) && !dst.isNameObfuscated()) { // full match or name match with no alternatives
 					match(src, dst);
@@ -212,11 +221,11 @@ public class Matcher {
 			Set<MethodInstance> dstHierarchyMembers = matchedDst.getAllHierarchyMembers();
 			if (dstHierarchyMembers.size() <= 1) continue;
 
-			for (MethodInstance dst : b.getMethods()) {
-				if (dstHierarchyMembers.contains(dst)) {
+			for (MethodInstance hierarchyDst : b.getMethods()) {
+				if (dstHierarchyMembers.contains(hierarchyDst)) {
 					src.setMatchable(true);
-					dst.setMatchable(true);
-					match(src, dst);
+					hierarchyDst.setMatchable(true);
+					match(src, hierarchyDst);
 					break;
 				}
 			}
@@ -235,6 +244,49 @@ public class Matcher {
 		}
 
 		env.getCache().clear();
+	}
+
+	private static MethodInstance getUniqueExactBytecodeMethod(MethodInstance src, ClassInstance srcCls, ClassInstance dstCls) {
+		MethodInstance ret = null;
+
+		for (MethodInstance dst : dstCls.getMethods()) {
+			if (!canMatchByExactBytecode(src, dst)) continue;
+
+			if (ret != null) return null;
+
+			ret = dst;
+		}
+
+		if (ret == null) return null;
+
+		for (MethodInstance otherSrc : srcCls.getMethods()) {
+			if (otherSrc == src || otherSrc.hasMatch()) continue;
+			if (!canMatchByExactBytecode(otherSrc, ret)) continue;
+
+			return null;
+		}
+
+		return ret;
+	}
+
+	private static boolean canMatchByExactBytecode(MethodInstance a, MethodInstance b) {
+		return !a.hasMatch()
+				&& !b.hasMatch()
+				&& !hasInvokeDynamic(a)
+				&& !hasInvokeDynamic(b)
+				&& a.getAccess() == b.getAccess()
+				&& a.getDesc().equals(b.getDesc())
+				&& ClassifierUtil.compareInsns(a, b) >= exactMethodBytecodeThreshold;
+	}
+
+	private static boolean hasInvokeDynamic(MethodInstance method) {
+		if (method.getAsmNode() == null) return false;
+
+		for (AbstractInsnNode insn : method.getAsmNode().instructions) {
+			if (insn instanceof InvokeDynamicInsnNode) return true;
+		}
+
+		return false;
 	}
 
 	private static void unmatchMembers(ClassInstance cls) {
@@ -817,4 +869,5 @@ public class Matcher {
 	private final double relMethodArgAutoMatchThreshold = 0.085;
 	private final double absMethodVarAutoMatchThreshold = 0.85;
 	private final double relMethodVarAutoMatchThreshold = 0.085;
+	private final double exactMethodBytecodeThreshold = 1.0;
 }
