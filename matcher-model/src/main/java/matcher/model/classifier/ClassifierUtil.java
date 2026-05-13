@@ -104,7 +104,7 @@ public class ClassifierUtil {
 
 		//MethodInstance hierarchyMatch = a.getHierarchyMatch();
 		//if (hierarchyMatch != null && !hierarchyMatch.getAllHierarchyMembers().contains(b)) return false;
-		if ((a.hasHierarchyMatch() || b.hasHierarchyMatch()) && !a.hasMatchedHierarchy(b)) return false;
+		if (!ignoreMethodMatches && (a.hasHierarchyMatch() || b.hasHierarchyMatch()) && !a.hasMatchedHierarchy(b)) return false;
 
 		if (a.getType() == MethodType.LAMBDA_IMPL && b.getType() == MethodType.LAMBDA_IMPL) { // require same "outer method" for lambdas
 			boolean found = false;

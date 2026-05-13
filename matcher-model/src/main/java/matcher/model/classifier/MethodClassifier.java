@@ -82,7 +82,7 @@ public class MethodClassifier {
 			}
 		}
 
-		if (!src.hasMatch()) { // limit dsts to the same method tree if there's a matched src
+		if (!src.hasMatch() && limitExistingMatches) { // limit dsts to the same method tree if there's a matched src
 			MethodInstance matched = src.getHierarchyMatch();
 
 			if (matched != null) {
