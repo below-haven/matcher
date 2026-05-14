@@ -71,30 +71,39 @@ public class SrcDecorator {
 
 		JavaParser parser = new JavaParser(new ParserConfiguration()
 				.setLanguageLevel(LanguageLevel.RAW));
+		NameSanitizer sanitizer = NameSanitizer.create(cls, nameType);
 
-		ParseResult<CompilationUnit> result = parser.parse(src);
+		String parseSrc = src;
+		ParseResult<CompilationUnit> result;
 		CompilationUnit cu;
 
-		if (result.isSuccessful()) {
-			cu = result.getResult().orElseThrow();
-		} else {
-			String fixedSrc = tryFixCodeFormat(src, result.getProblems());
+		for (;;) {
+			result = parser.parse(parseSrc);
 
-			if (fixedSrc == null) {
-				throw new SrcParseException(result.getProblems(), src);
+			if (result.isSuccessful()) {
+				cu = result.getResult().orElseThrow();
+				break;
 			}
 
-			ParseResult<CompilationUnit> fixedResult = parser.parse(fixedSrc);
+			String fixedSrc = tryFixCodeFormat(parseSrc, result.getProblems());
 
-			if (!fixedResult.isSuccessful()) {
-				throw new SrcParseException(fixedResult.getProblems(), fixedSrc);
-			} else {
-				cu = fixedResult.getResult().orElseThrow();
+			if (fixedSrc != null) {
+				parseSrc = fixedSrc;
+				continue;
 			}
+
+			String sanitizedSrc = sanitizer.trySanitizeParseProblems(parseSrc, result.getProblems());
+
+			if (sanitizedSrc != null) {
+				parseSrc = sanitizedSrc;
+				continue;
+			}
+
+			throw new SrcParseException(result.getProblems(), src);
 		}
 
 		TypeResolver resolver = new TypeResolver();
-		resolver.setup(cls, nameType, cu);
+		resolver.setup(cls, nameType, cu, sanitizer);
 
 		cu.accept(remapVisitor, resolver);
 

@@ -268,7 +268,7 @@ public class HtmlPrinter extends DefaultPrettyPrinterVisitor {
 	public void visit(SimpleName n, Void arg) {
 		printOrphanCommentsBeforeThisChildNode(n);
 		printComment(n.getComment(), arg);
-		printer.print(HtmlUtil.escape(n.getIdentifier()));
+		printer.print(HtmlUtil.escape(typeResolver.decodeName(n.getIdentifier())));
 	}
 
 	@Override

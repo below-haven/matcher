@@ -32,13 +32,14 @@ import matcher.model.type.Matchable;
 import matcher.model.type.MethodInstance;
 
 class TypeResolver {
-	public void setup(ClassInstance rootCls, NameType nameType, CompilationUnit cu) {
+	public void setup(ClassInstance rootCls, NameType nameType, CompilationUnit cu, NameSanitizer sanitizer) {
 		this.rootCls = rootCls;
 		this.env = rootCls.getEnv();
 		this.nameType = nameType;
+		this.sanitizer = sanitizer;
 
 		if (cu.getPackageDeclaration().isPresent()) {
-			pkg = cu.getPackageDeclaration().get().getNameAsString().replace('.', '/');
+			pkg = sanitizer.decodeQualifiedName(cu.getPackageDeclaration().get().getNameAsString().replace('.', '/'));
 			wildcardImports.add(pkg.concat("/"));
 		} else {
 			pkg = null;
@@ -51,9 +52,9 @@ class TypeResolver {
 			if (imp.isStatic()) continue;
 
 			if (imp.isAsterisk()) {
-				wildcardImports.add(imp.getNameAsString().replace('.', '/').concat("/"));
+				wildcardImports.add(sanitizer.decodeQualifiedName(imp.getNameAsString().replace('.', '/')).concat("/"));
 			} else {
-				String name = imp.getNameAsString();
+				String name = sanitizer.decodeQualifiedName(imp.getNameAsString());
 				int pos = name.lastIndexOf('.');
 
 				if (pos != -1) imports.put(name.substring(pos + 1), name.replace('.', '/'));
@@ -76,6 +77,7 @@ class TypeResolver {
 				TypeDeclaration<?> typeDecl = (TypeDeclaration<?>) node;
 
 				String namePart = typeDecl.getName().getIdentifier();
+				namePart = sanitizer.decodeName(namePart);
 
 				if (sb.length() > pkgEnd) {
 					sb.insert(pkgEnd, '$');
@@ -120,7 +122,7 @@ class TypeResolver {
 		if (methodDecl instanceof ConstructorDeclaration) {
 			name = "<init>";
 		} else {
-			name = methodDecl.getName().getIdentifier();
+			name = sanitizer.decodeName(methodDecl.getName().getIdentifier());
 		}
 
 		return cls.getMethod(name, desc, nameType);
@@ -130,7 +132,7 @@ class TypeResolver {
 		ClassInstance cls = getCls(var);
 		if (cls == null) return null;
 
-		String name = var.getName().getIdentifier();
+		String name = sanitizer.decodeName(var.getName().getIdentifier());
 		String desc = toDesc(var.getType(), rootCls);
 
 		return cls.getField(name, desc, nameType);
@@ -140,7 +142,7 @@ class TypeResolver {
 		ClassInstance cls = getCls(var);
 		if (cls == null) return null;
 
-		String name = var.getName().getIdentifier();
+		String name = sanitizer.decodeName(var.getName().getIdentifier());
 		String desc = !cls.isPrimitive() ? "L"+cls.getName(nameType)+";" : cls.getId();
 
 		return cls.getField(name, desc, nameType);
@@ -169,12 +171,12 @@ class TypeResolver {
 			String name;
 
 			if (!t.getScope().isPresent()) {
-				name = t.getNameAsString();
+				name = sanitizer.decodeName(t.getNameAsString());
 			} else {
 				List<String> parts = new ArrayList<>();
 
 				do {
-					parts.add(t.getName().getIdentifier());
+					parts.add(sanitizer.decodeName(t.getName().getIdentifier()));
 				} while ((t = t.getScope().orElse(null)) != null);
 
 				StringBuilder sb = new StringBuilder();
@@ -261,9 +263,14 @@ class TypeResolver {
 		return e.getName(nameType);
 	}
 
+	public String decodeName(String name) {
+		return sanitizer.decodeName(name);
+	}
+
 	private ClassInstance rootCls;
 	private ClassEnv env;
 	private NameType nameType;
+	private NameSanitizer sanitizer;
 	private String pkg;
 	private final Map<String, String> imports = new HashMap<>();
 	private final List<String> wildcardImports = new ArrayList<>();
