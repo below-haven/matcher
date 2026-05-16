@@ -66,7 +66,7 @@ configurations {
 dependencies {
 	api project(':matcher-core')
 	api "com.github.javaparser:javaparser-core:${javaparser_version}"
-	api "net.fabricmc:cfr:${fabric_cfr_version}"
+	api "org.benf:cfr:${cfr_version}"
 	api "org.bitbucket.mstrobel:procyon-compilertools:${procyon_version}"
 	implementation "org.ow2.asm:asm-util:${asm_version}"
 	implementation "org.vineflower:vineflower:${vineflower_version}"
@@ -90,7 +90,7 @@ dependencies {
 
 extraJavaModuleInfo {
 	// CFR
-	automaticModule("net.fabricmc:cfr", "cfr")
+	automaticModule("org.benf:cfr", "cfr")
 
 	// Procyon
 	automaticModule("org.bitbucket.mstrobel:procyon-compilertools", "procyon.compilertools")
