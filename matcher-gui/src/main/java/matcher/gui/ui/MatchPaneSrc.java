@@ -22,10 +22,14 @@ import javafx.css.converter.ColorConverter;
 import javafx.geometry.Orientation;
 import javafx.scene.Node;
 import javafx.scene.control.Cell;
+import javafx.scene.control.ContextMenu;
 import javafx.scene.control.ListView;
+import javafx.scene.control.MenuItem;
 import javafx.scene.control.SplitPane;
 import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeView;
+import javafx.scene.input.Clipboard;
+import javafx.scene.input.ClipboardContent;
 import javafx.scene.paint.Color;
 
 import matcher.core.Matcher;
@@ -64,7 +68,7 @@ public class MatchPaneSrc extends SplitPane implements IFwdGuiComponent, ISelect
 
 		// member list
 
-		memberList.setCellFactory(ignore -> new SrcListCell<MemberInstance<?>>());
+		memberList.setCellFactory(ignore -> new SrcListCell<MemberInstance<?>>(false));
 		memberList.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> {
 			if (suppressChangeEvents || oldValue == newValue) return;
 
@@ -93,7 +97,7 @@ public class MatchPaneSrc extends SplitPane implements IFwdGuiComponent, ISelect
 
 		// method var list
 
-		varList.setCellFactory(ignore -> new SrcListCell<MethodVarInstance>());
+		varList.setCellFactory(ignore -> new SrcListCell<MethodVarInstance>(false));
 		varList.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> {
 			if (suppressChangeEvents || oldValue == newValue) return;
 
@@ -176,7 +180,7 @@ public class MatchPaneSrc extends SplitPane implements IFwdGuiComponent, ISelect
 			classTree = null;
 			classList = new ListView<>();
 
-			classList.setCellFactory(ignore -> new SrcListCell<>());
+			classList.setCellFactory(ignore -> new SrcListCell<>(true));
 			classList.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> {
 				if (suppressChangeEvents || oldValue == newValue) return;
 
@@ -188,6 +192,19 @@ public class MatchPaneSrc extends SplitPane implements IFwdGuiComponent, ISelect
 	}
 
 	private class SrcListCell<T extends Matchable<? extends T>> extends StyledListCell<T> {
+		SrcListCell(boolean copyClassPathEnabled) {
+			this.copyClassPathEnabled = copyClassPathEnabled;
+		}
+
+		@Override
+		protected void updateItem(T item, boolean empty) {
+			super.updateItem(item, empty);
+
+			setContextMenu(copyClassPathEnabled && !empty && item instanceof ClassInstance
+					? createCopyClassPathMenu((ClassInstance) item)
+					: null);
+		}
+
 		@Override
 		protected String getText(T item) {
 			return getCellText(item, true);
@@ -197,6 +214,8 @@ public class MatchPaneSrc extends SplitPane implements IFwdGuiComponent, ISelect
 		protected void setCustomStyle(StyledListCell<?> cell, T item) {
 			setCellStyle(cell, item);
 		}
+
+		private final boolean copyClassPathEnabled;
 	}
 
 	protected enum CellStyleClass {
@@ -221,6 +240,15 @@ public class MatchPaneSrc extends SplitPane implements IFwdGuiComponent, ISelect
 
 	private class SrcTreeCell extends StyledTreeCell<Object> {
 		@Override
+		protected void updateItem(Object item, boolean empty) {
+			super.updateItem(item, empty);
+
+			setContextMenu(!empty && item instanceof ClassInstance
+					? createCopyClassPathMenu((ClassInstance) item)
+					: null);
+		}
+
+		@Override
 		protected String getText(Object item) {
 			if (item instanceof String) {
 				return (String) item;
@@ -239,6 +267,18 @@ public class MatchPaneSrc extends SplitPane implements IFwdGuiComponent, ISelect
 				cell.getStyleClass().removeAll(CellStyleClass.cssNames);
 			}
 		}
+	}
+
+	private ContextMenu createCopyClassPathMenu(ClassInstance cls) {
+		String classPath = cls.getName(NameType.PLAIN, true);
+		MenuItem copyPathItem = new MenuItem("Copy class path");
+		copyPathItem.setOnAction(event -> {
+			ClipboardContent content = new ClipboardContent();
+			content.putString(classPath);
+			Clipboard.getSystemClipboard().setContent(content);
+		});
+
+		return new ContextMenu(copyPathItem);
 	}
 
 	private String getCellText(Matchable<?> item, boolean full) {

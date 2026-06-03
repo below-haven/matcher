@@ -2025,6 +2025,12 @@ class Analysis {
 		while ((in = positionsToTrace.poll()) != null) {
 			int pos = il.indexOf(in);
 			Frame<SourceValue> frame = frames[pos];
+
+			if (frame == null) {
+				logger.debug("Skipping initializer analysis for {} in {}: instruction {} is unreachable", field, method, pos);
+				return;
+			}
+
 			int stackConsumed = getStackDemand(in, frame);
 
 			for (int i = 0; i < stackConsumed; i++) {

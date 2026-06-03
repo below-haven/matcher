@@ -680,7 +680,13 @@ public class ClassFeatureExtractor implements LocalClassEnv {
 			//ret = env.getMissingCls(id, createUnknown);
 
 			// try shared jvm-cp class
-			if ((ret = env.getMissingCls(id, false)) != null || !createUnknown) return ret;
+			try {
+				if ((ret = env.getMissingCls(id, false)) != null || !createUnknown) return ret;
+			} catch (InvalidSharedEnvQueryException e) {
+				ClassInstance ownCls = this == env.getEnvA() ? e.a : e.b;
+				if (ownCls != null && ownCls.isReal()) throw e;
+				if (!createUnknown) return null;
+			}
 
 			// create local artificial class
 			ret = new ClassInstance(id, this);
